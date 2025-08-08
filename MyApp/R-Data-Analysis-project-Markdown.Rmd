@@ -1,0 +1,471 @@
+---
+title: "R-Data-Analysis-project"
+output: html_document
+date: "2025-05-28"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r}
+library(tidyverse)
+library(dplyr)
+library(plotly)
+```
+
+
+R Data Project. ESG and Financial Performance Dataset
+
+```{r}
+df =  read.csv('./company_esg_financial_dataset_copy.csv')
+```
+
+
+```{r}
+df
+```
+```{r}
+names(df)
+str(df)
+```
+
+
+```{r}
+summary(df)
+```
+Filtering and plotting by profit margin
+```{r}
+big_profit = df|> dplyr::filter(Region == 'Africa', ProfitMargin > 20)
+ggplot(big_profit, aes(x=Year) )+ geom_bar()
+
+small_profit = df|> dplyr::filter(Region == 'Africa', ProfitMargin < 20) 
+ggplot(small_profit, aes(x=Year) )+ geom_bar()
+
+new = df|> dplyr::filter(ESG_Environmental > 80, ProfitMargin > 20) 
+ggplot(new, aes(x=Year, fill = Industry)) + geom_bar(position = 'dodge') +facet_wrap(.~ Region)
+```
+
+
+```{r}
+ggplot(df, aes(x = Industry, y = log10(Revenue), color = Industry)) + geom_point() + facet_wrap(. ~ Region)+ guides(x =  guide_axis(angle = 90))
+ggplot(df, aes(x = Industry, y = Revenue, color = Industry)) + geom_point() + facet_wrap(. ~ Region)+ guides(x =  guide_axis(angle = 90))
+ggplot(df, aes(x = Industry, y = log10(EnergyConsumption), color = Industry)) + geom_point() + facet_wrap(. ~ Region)+ guides(x =  guide_axis(angle = 90))
+ggplot(df, aes(x = Industry, y = log10(CarbonEmissions), color = Industry)) + geom_boxplot() + facet_wrap(. ~ Region)+ guides(x =  guide_axis(angle = 90))
+ggplot(df, aes(x = Industry, y = ProfitMargin, color = Industry)) + geom_boxplot() + facet_wrap(. ~ Region)+ guides(x =  guide_axis(angle = 90))
+
+```
+```{r}
+df |> mutate(Industry = fct_reorder(Industry, desc(ESG_Overall))) |>
+ggplot( aes(x = Industry, y = ESG_Overall, color = Industry)) + geom_boxplot() + facet_wrap(. ~ Region)+  guides(x =  guide_axis(angle = 90))
+```
+
+```{r}
+ggplot(df, aes(x = ESG_Overall, y = log10(MarketCap), color = Industry)) + geom_col() + facet_wrap(. ~ Region)
+```
+```{r}
+ggplot(df_ranked[df_ranked$Region == 'Europe',], aes(x = Industry)) +geom_bar()
+```
+```{r}
+
+```
+
+```{r}
+ggplot(df, aes(x = Industry, fill = Industry)) + geom_bar() + facet_wrap(. ~ Region) +  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+```{r}
+ggplot(df, aes(x = ESG_Overall, fill = Industry)) + geom_histogram() + facet_wrap(. ~ Region) +  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+```{r}
+df |> group_by(CompanyID) |> summarise(mean(MarketCap)) 
+```
+```{r}
+#df_ranked <- df |> 
+#  mutate(across(c(CarbonEmissions, WaterUsage, EnergyConsumption), 
+#                ~ scale(.x)[, 1], 
+#                .names = "scaled_{.col}")) |> 
+#  mutate(resource_score = -1 * (scaled_CarbonEmissions + scaled_WaterUsage + scaled_EnergyConsumption))
+
+df_ranked <- df |>
+  mutate(
+    scaled_CarbonEmissions = as.numeric(scale(CarbonEmissions)),
+    scaled_WaterUsage = as.numeric(scale(WaterUsage)),
+    scaled_EnergyConsumption = as.numeric(scale(EnergyConsumption))
+  ) |>
+  mutate(
+    resource_score = -1 * rowMeans(across(c(scaled_CarbonEmissions, scaled_WaterUsage, scaled_EnergyConsumption)))
+  )
+df_ranked
+```
+```{r}
+df_extreme_outliers = df_ranked |> 
+  filter(resource_score < -20)
+```
+```{r}
+df_extreme_outliers
+```
+
+
+```{r}
+ggplot(df_ranked, aes(x = reorder(CompanyName, resource_score), y = resource_score, fill = Industry)) +
+  geom_col() +
+  theme_minimal() +
+  labs(title = "Distribution of Resource Scores")
+```
+```{r}
+str(df[, c("CarbonEmissions", "WaterUsage", "EnergyConsumption")])
+summary(df[, c("CarbonEmissions", "WaterUsage", "EnergyConsumption")])
+```
+
+```{r}
+```
+```{r}
+df_clean = df |>
+  filter(
+    CarbonEmissions < quantile(CarbonEmissions, 0.99, na.rm = TRUE),
+    WaterUsage < quantile(WaterUsage, 0.99, na.rm = TRUE),
+    EnergyConsumption < quantile(EnergyConsumption, 0.99, na.rm = TRUE)
+  )
+```
+```{r}
+df_outliers = df |>
+  filter(
+    CarbonEmissions >= quantile(CarbonEmissions, 0.99, na.rm = TRUE) |
+    WaterUsage >= quantile(WaterUsage, 0.99, na.rm = TRUE) |
+    EnergyConsumption >= quantile(EnergyConsumption, 0.99, na.rm = TRUE)
+  )
+```
+```{r}
+# different than the other cleaned version. this one creates the resource ranking using all original values,
+# then filters out the extreme outliers
+
+df_clean_ranked = df |>
+  mutate(
+    scaled_Carbon = as.numeric(scale(CarbonEmissions)),
+    scaled_Water = as.numeric(scale(WaterUsage)),
+    scaled_Energy = as.numeric(scale(EnergyConsumption))
+  ) |>
+  filter(
+    CarbonEmissions < quantile(CarbonEmissions, 0.99, na.rm = TRUE) &
+    WaterUsage < quantile(WaterUsage, 0.99, na.rm = TRUE) &
+    EnergyConsumption < quantile(EnergyConsumption, 0.99, na.rm = TRUE)
+  ) |>
+  mutate(
+    resource_score = -1 * rowMeans(across(c(scaled_Carbon, scaled_Water, scaled_Energy)))
+  )
+```
+```{r}
+summary(df_ranked$resource_score)
+
+```
+```{r}
+df_ranked
+```
+
+```{r}
+df_outliers |> arrange(desc(EnergyConsumption))
+```
+```{r}
+df_worst_ranked = df |>
+  mutate(
+    scaled_Carbon = as.numeric(scale(CarbonEmissions)),
+    scaled_Water = as.numeric(scale(WaterUsage)),
+    scaled_Energy = as.numeric(scale(EnergyConsumption))
+  ) |>
+  filter(
+    CarbonEmissions >= quantile(CarbonEmissions, 0.99, na.rm = TRUE) &
+    WaterUsage >= quantile(WaterUsage, 0.99, na.rm = TRUE) &
+    EnergyConsumption >= quantile(EnergyConsumption, 0.99, na.rm = TRUE)
+  ) |>
+  mutate(
+    resource_score = -1 * rowMeans(across(c(scaled_Carbon, scaled_Water, scaled_Energy)))
+  )
+```
+```{r}
+df_worst_ranked
+```
+
+```{r}
+ggplot(df_ranked, aes(x = reorder(CompanyName, resource_score), y = resource_score, fill = Industry)) +
+  geom_col() +
+  theme_minimal() +
+  labs(title = "Distribution of Resource Scores")
+```
+
+
+
+```{r}
+company_AVG = df |> group_by(CompanyID, CompanyName) |>
+  summarise(AvgRevenue= round(mean(Revenue),2) , 
+            AvgProfitMargin = round(mean(ProfitMargin),2),
+            AvgMarketCap  = round(mean(MarketCap),2),
+            AvgGrowthRate = round(mean(GrowthRate, na.rm = TRUE),2),
+             AvgESG_Overall = round(mean(ESG_Overall),1),
+            AvgESG_Environmental = round(mean(ESG_Environmental),1),
+            AvgESG_Social  = round(mean(ESG_Social),1),
+            AvgESG_Governance  = round(mean(ESG_Governance),1),
+            AvgCarbonEmissions = round(mean(CarbonEmissions),2),
+            AvgWaterUsage  = round(mean(WaterUsage),2),
+            AvgEnergyConsumption = round(mean(EnergyConsumption),2)
+            )
+company_AVG= company_AVG |> left_join(df |> group_by(CompanyID) |>
+                           summarise(Industry = first(Industry), Region = first(Region)),
+                         by = 'CompanyID')
+company_AVG
+```
+
+```{r}
+
+ggplot(company_AVG, aes(x = AvgRevenue)) +  geom_histogram(binwidth = 50)
+
+  
+ggplot(company_AVG, aes(x = AvgESG_Overall, y = log10(AvgRevenue), color = Industry)) +
+  geom_point(size = 3, alpha = 0.7) 
+```
+
+```{r}
+company_AVG |> group_by(Region) |> filter(rank(desc(AvgProfitMargin))==1) |> arrange(desc(AvgProfitMargin))
+```
+
+
+```{r}
+company_AVG |> group_by(Region) |> filter(rank(desc(AvgESG_Overall))==1)
+
+```
+```{r}
+
+```
+
+
+```{r}
+company_AVG |> group_by(Region) |> filter(rank(desc(AvgGrowthRate))==1)
+
+```
+
+
+```{r}
+company_AVG |> group_by(Region) |> filter(rank(desc(AvgESG_Overall))==1)  |>
+  ggplot( aes(x = fct_reorder(Region, -AvgESG_Overall), y = AvgESG_Overall, fill = Industry)) +
+  geom_col() + 
+  geom_text(aes(label = CompanyName), vjust = 1.5, color = "black", angle = 45, size = 3.5) 
+
+```
+
+
+```{r}
+df |>   filter(Industry == "Energy") |>   ggplot(aes(x = ESG_Overall, y = ProfitMargin, color = Industry)) +
+  geom_point(color = sample(colors(), 1)) + 
+  facet_wrap(. ~ Region) 
+df |>   filter(Industry == "Technology") |>   ggplot(aes(x = ESG_Overall, y = ProfitMargin, color = Industry)) +
+  geom_point(color = sample(colors(), 1)) + 
+  facet_wrap(. ~ Region) 
+df |>   filter(Industry == "Consumer Goods") |>   ggplot(aes(x = ESG_Overall, y = ProfitMargin, color = Industry)) +
+  geom_point(color = sample(colors(), 1)) + 
+  facet_wrap(. ~ Region) 
+df |>   filter(Industry == "Retail") |>   ggplot(aes(x = ESG_Overall, y = ProfitMargin, color = Industry)) +
+  geom_col(color = sample(colors(), 1)) + 
+  facet_wrap(. ~ Region) 
+df |>   filter(Industry == "Utilities") |>   ggplot(aes(x = ESG_Overall, y = ProfitMargin, color = Industry)) +
+  geom_point(color = sample(colors(), 1)) + 
+  facet_wrap(. ~ Region) 
+df |>   filter(Industry == "Transportation") |>   ggplot(aes(x = ESG_Overall, y = ProfitMargin, color = Industry)) +
+  geom_point(color = sample(colors(), 1)) + 
+  facet_wrap(. ~ Region) 
+df |>   filter(Industry == "Healthcare") |>   ggplot(aes(x = ESG_Overall, y = ProfitMargin, color = Industry)) +
+  geom_point(color = sample(colors(), 1)) + 
+  facet_wrap(. ~ Region) 
+df |>   filter(Industry == "Manufacturing") |>   ggplot(aes(x = ESG_Overall, y = ProfitMargin, color = Industry)) +
+  geom_point(color = sample(colors(), 1)) + 
+  facet_wrap(. ~ Region) 
+df |>   filter(Industry == "Finance") |>   ggplot(aes(x = ESG_Overall, y = ProfitMargin, color = Industry)) +
+  geom_col(color = sample(colors(), 1)) + 
+  facet_wrap(. ~ Region) 
+```
+```{r}
+colors()
+```
+```{r}
+df |>   filter(Industry == "Finance") |>   ggplot(aes(x = ESG_Overall, color = Industry)) +
+  geom_histogram() + 
+  facet_wrap(. ~ Region) 
+
+```
+
+
+```{r}
+industry_AVG_year = df |> group_by(Industry, Year, Region) |>
+  summarise(AvgRevenue= round(mean(Revenue),2) , 
+            AvgProfitMargin = round(mean(ProfitMargin),2),
+            AvgMarketCap  = round(mean(MarketCap),2),
+            AvgGrowthRate = round(mean(GrowthRate, na.rm = TRUE),2),
+             AvgESG_Overall = round(mean(ESG_Overall),1),
+            AvgESG_Environmental = round(mean(ESG_Environmental),1),
+            AvgESG_Social  = round(mean(ESG_Social),1),
+            AvgESG_Governance  = round(mean(ESG_Governance),1),
+            AvgCarbonEmissions = round(mean(CarbonEmissions),2),
+            AvgWaterUsage  = round(mean(WaterUsage),2),
+            AvgEnergyConsumption = round(mean(EnergyConsumption),2)
+            )
+```
+```{r}
+region_AVG = df |> group_by(Region) |>
+  summarise(AvgRevenue= round(mean(Revenue),2) , 
+            AvgProfitMargin = round(mean(ProfitMargin),2),
+            AvgMarketCap  = round(mean(MarketCap),2),
+            AvgGrowthRate = round(mean(GrowthRate, na.rm = TRUE),2),
+             AvgESG_Overall = round(mean(ESG_Overall),1),
+            AvgESG_Environmental = round(mean(ESG_Environmental),1),
+            AvgESG_Social  = round(mean(ESG_Social),1),
+            AvgESG_Governance  = round(mean(ESG_Governance),1),
+            AvgCarbonEmissions = round(mean(CarbonEmissions),2),
+            AvgWaterUsage  = round(mean(WaterUsage),2),
+            AvgEnergyConsumption = round(mean(EnergyConsumption),2)
+            )
+```
+```{r}
+Regional_Industry_AVG = df |> group_by(Industry, Region) |>
+  summarise(AvgRevenue= round(mean(Revenue),2) , 
+            AvgProfitMargin = round(mean(ProfitMargin),2),
+            AvgMarketCap  = round(mean(MarketCap),2),
+            AvgGrowthRate = round(mean(GrowthRate, na.rm = TRUE),2),
+             AvgESG_Overall = round(mean(ESG_Overall),1),
+            AvgESG_Environmental = round(mean(ESG_Environmental),1),
+            AvgESG_Social  = round(mean(ESG_Social),1),
+            AvgESG_Governance  = round(mean(ESG_Governance),1),
+            AvgCarbonEmissions = round(mean(CarbonEmissions),2),
+            AvgWaterUsage  = round(mean(WaterUsage),2),
+            AvgEnergyConsumption = round(mean(EnergyConsumption),2)
+            )
+```
+
+```{r}
+    industry_AVG_year = df |> group_by(Industry, Year) |>
+      summarise(AvgRevenue= round(mean(Revenue),2) , 
+                AvgProfitMargin = round(mean(ProfitMargin),2),
+                AvgMarketCap  = round(mean(MarketCap),2),
+                AvgGrowthRate = round(mean(GrowthRate, na.rm = TRUE),2),
+                AvgESG_Overall = round(mean(ESG_Overall),1),
+                AvgESG_Environmental = round(mean(ESG_Environmental),1),
+                AvgESG_Social  = round(mean(ESG_Social),1),
+                AvgESG_Governance  = round(mean(ESG_Governance),1),
+                AvgCarbonEmissions = round(mean(CarbonEmissions),2),
+                AvgWaterUsage  = round(mean(WaterUsage),2),
+                AvgEnergyConsumption = round(mean(EnergyConsumption),2)
+      )
+    industry_AVG_year = industry_AVG_year |> left_join(df |> group_by(Industry) |>
+                                            summarise(Industry = first(Industry), Region = first(Region)),
+                                          by = 'Industry')
+```
+
+
+```{r}
+
+df_clean_ranked |> group_by(CompanyName) |>
+  summarise( avg_score= mean(resource_score))|> 
+  slice_max(order_by = avg_score, n = 10) |>
+
+  ggplot(aes(x=reorder(CompanyName, -avg_score), y= avg_score)) + geom_col()
+
+
+```
+```{r}
+df_clean_ranked |> group_by(CompanyName) |>
+  summarise( avg_score= mean(resource_score))|> 
+  slice_min(order_by = avg_score, n = 10) |>
+  ggplot(aes(x=reorder(CompanyName, -avg_score), y= avg_score)) + geom_col()
+
+
+```
+```{r}
+# output$emissions = renderPlotly({
+     
+     df_clean_ranked = df |>
+       mutate(
+         scaled_Carbon = as.numeric(scale(CarbonEmissions)),
+         scaled_Water = as.numeric(scale(WaterUsage)),
+         scaled_Energy = as.numeric(scale(EnergyConsumption))
+       ) |>
+       filter(
+         CarbonEmissions < quantile(CarbonEmissions, 0.99, na.rm = TRUE) &
+           WaterUsage < quantile(WaterUsage, 0.99, na.rm = TRUE) &
+           EnergyConsumption < quantile(EnergyConsumption, 0.99, na.rm = TRUE)
+       ) |>
+       mutate(
+         resource_score = -1 * rowMeans(across(c(scaled_Carbon, scaled_Water, scaled_Energy)))
+       )
+     
+     df_clean_ranked$resource_consumption |> paste(df$CarbonEmissions, df$WaterUsage, df$EnergyConsumption, sep=' - ')
+     
+ #    df_clean_ranked |> group_by(CompanyName) |>
+  #      filter(Region == input$region2, Industry %in% input$industries1) |>
+  #      summarise( avg_score= mean(resource_score)) |> 
+  #      slice_min(order_by = avg_score, n = 10) |>
+  #     
+  #       plot_ly(x = ~CompanyName,
+  #        y = avg_score,
+  #        color = ~plotly,
+  #        type = "bar") %>%
+#  layout(barmode = "stack")
+```
+
+
+```{r}
+df_clean_ranked = df_clean_ranked |> group_by(CompanyName) |>
+  mutate( avg_score= mean(resource_score)) |> ungroup()
+
+        ggplot(df_clean_ranked, aes(x=reorder(CompanyName, -avg_score), y= avg_score)) + geom_col() + facet_grid(.~ Region) +
+        xlab('Company Name') +
+        ylab('Resource Score')+
+        theme(axis.text.x = element_text(angle = 90, hjust = 1, size = 8),
+    panel.spacing = unit(1, "cm"))
+     
+```
+
+```{r}
+df_clean_ranked = df |>
+       mutate(
+         scaled_Carbon = as.numeric(scale(CarbonEmissions)),
+         scaled_Water = as.numeric(scale(WaterUsage)),
+         scaled_Energy = as.numeric(scale(EnergyConsumption))
+       ) |>
+       filter(
+         CarbonEmissions < quantile(CarbonEmissions, 0.99, na.rm = TRUE) &
+           WaterUsage < quantile(WaterUsage, 0.99, na.rm = TRUE) &
+           EnergyConsumption < quantile(EnergyConsumption, 0.99, na.rm = TRUE)
+       ) |>
+       mutate(
+         resource_score = -1 * rowMeans(across(c(scaled_Carbon, scaled_Water, scaled_Energy)))
+       )
+```
+
+
+```{r}
+df_clean_ranked = df_clean_ranked %>%
+  mutate(resource_consumption = paste(CarbonEmissions, WaterUsage, EnergyConsumption, sep = " - "))
+```
+
+
+```{r}
+library(wesanderson)
+df_clean_ranked %>% 
+       group_by(CompanyName) %>%
+         summarise( avg_score= mean(resource_score)) %>%
+        slice_min(order_by = avg_score, n = 10) 
+       
+         plot_ly(x = ~CompanyName,
+          y = ~avg_score,
+          color = ~resource_consumption,
+          colors = wes_palette('FantasticFox1', 30, type='continuous'),
+          type = "bar") %>%
+       
+        layout(barmode = "stack")
+         
+```
+

@@ -1,0 +1,10 @@
+name: myapp
+title:
+username: benmanzano
+account: benmanzano
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 15121319
+bundleId: 10674724
+url: https://benmanzano.shinyapps.io/myapp/
+version: 1
